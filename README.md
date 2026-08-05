@@ -49,3 +49,19 @@ An AI-powered Resume Screening System that automatically analyzes resumes, predi
 ---
 
 ## 📂 Project Structure
+## 📸 Screenshots
+
+### 🏠 Home Page
+![Home Page](screenshots/home.png)
+
+
+### 📊 Resume Analysis Result
+![Result Page](screenshots/result.png)
+
+
+### 🔐 Admin Login
+![Login Page](screenshots/login.png)
+
+
+### 📋 Admin Dashboard
+![Dashboard](screenshots/dashboard.png)
