@@ -75,6 +75,21 @@ required_skills = [
     "css",
     "javascript"
 ]
+def calculate_match(resume, job):
+    vectorizer = TfidfVectorizer()
+
+    vectors = vectorizer.fit_transform(
+        [resume, job]
+    )
+
+    similarity = cosine_similarity(
+        vectors[0:1],
+        vectors[1:2]
+    )
+
+    score = similarity[0][0] * 100
+
+    return round(score, 2)
 def extract_experience(text):
     experience = 0
 
