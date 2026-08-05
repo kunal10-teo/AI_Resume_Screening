@@ -30,87 +30,20 @@ app = Flask(
 app.secret_key = "resume_screening_secret"
 
 
-# Load Model
-model = joblib.load(
-    "models/resume_model.pkl"
+# Base directory
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
 )
 
+# Model path
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "models",
+    "resume_model.pkl"
+)
 
-
-skills_list = [
-    "python",
-    "sql",
-    "machine learning",
-    "pandas",
-    "numpy",
-    "java",
-    "javascript",
-    "html",
-    "css",
-    "react",
-    "aws",
-    "docker",
-    "git"
-]
-
-
-required_skills = [
-    "python",
-    "sql",
-    "machine learning",
-    "pandas",
-    "numpy",
-    "git",
-    "docker",
-    "aws"
-]
-
-
-
-def calculate_match(resume, job):
-
-    documents = [
-        resume,
-        job
-    ]
-
-    vectorizer = TfidfVectorizer()
-
-    vectors = vectorizer.fit_transform(
-        documents
-    )
-
-    score = cosine_similarity(
-        vectors[0:1],
-        vectors[1:2]
-    )
-
-    return round(
-        score[0][0] * 100,
-        2
-    )
-
-
-
-def extract_experience(text):
-
-    pattern = r'(\d+)\+?\s*(?:years|year|yrs)'
-
-    experience = re.findall(
-        pattern,
-        text
-    )
-
-
-    if experience:
-
-        return max(
-            map(int, experience)
-        )
-
-
-    return 0
-
+# Load Model
+model = joblib.load(MODEL_PATH)
 
 
 # Home Page
