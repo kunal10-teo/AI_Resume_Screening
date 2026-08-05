@@ -44,6 +44,23 @@ MODEL_PATH = os.path.join(
 
 # Load Model
 model = joblib.load(MODEL_PATH)
+skills_list = [
+    "python",
+    "java",
+    "sql",
+    "machine learning",
+    "deep learning",
+    "data science",
+    "pandas",
+    "numpy",
+    "tensorflow",
+    "flask",
+    "html",
+    "css",
+    "javascript",
+    "react",
+    "aws"
+]
 
 def extract_experience(text):
     experience = 0
