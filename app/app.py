@@ -61,7 +61,20 @@ skills_list = [
     "react",
     "aws"
 ]
-
+required_skills = [
+    "python",
+    "sql",
+    "machine learning",
+    "data science",
+    "pandas",
+    "numpy",
+    "tensorflow",
+    "flask",
+    "java",
+    "html",
+    "css",
+    "javascript"
+]
 def extract_experience(text):
     experience = 0
 
