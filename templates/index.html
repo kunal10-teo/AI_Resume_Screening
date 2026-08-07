@@ -5,30 +5,58 @@
 
 <title>AI Resume Screening System</title>
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link 
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+rel="stylesheet">
+
+<style>
+
+body{
+    background:#f4f7fb;
+}
+
+.main-card{
+
+    border-radius:20px;
+}
+
+.score-card{
+
+    border-radius:15px;
+    padding:20px;
+    text-align:center;
+}
+
+.skill-badge{
+
+    margin:5px;
+    font-size:14px;
+}
+
+</style>
 
 </head>
 
 
-<body class="bg-light">
+<body>
 
 
 <div class="container mt-5">
 
 
-<div class="card shadow p-4">
+<div class="card shadow p-4 main-card">
 
 
 <h1 class="text-center mb-4">
+
 🤖 AI Resume Screening System
+
 </h1>
 
 
 
 <form method="POST" enctype="multipart/form-data">
 
-
-<!-- Candidate Name -->
 
 <div class="mb-3">
 
@@ -37,23 +65,16 @@ Candidate Name
 </label>
 
 <input
-
 class="form-control"
-
 type="text"
-
 name="name"
-
 placeholder="Enter candidate name"
-
 required>
 
 </div>
 
 
 
-
-<!-- Resume Upload -->
 
 <div class="mb-3">
 
@@ -62,24 +83,16 @@ Upload Resume PDF
 </label>
 
 <input
-
 class="form-control"
-
 type="file"
-
 name="resume"
-
 accept=".pdf"
-
 required>
 
 </div>
 
 
 
-
-
-<!-- Job Description -->
 
 <div class="mb-3">
 
@@ -105,10 +118,9 @@ placeholder="Paste job description here...">
 
 
 
-
 <button class="btn btn-primary w-100">
 
-Analyze Resume
+🚀 Analyze Resume
 
 </button>
 
@@ -123,17 +135,125 @@ Analyze Resume
 
 
 
-
 {% if result %}
 
 
+<div class="card shadow mt-4 p-4 main-card">
 
-<div class="card shadow mt-4 p-4">
 
+<h2 class="text-center">
 
-<h2>
-📊 Resume Analysis Result
+📊 AI Analysis Report
+
 </h2>
+
+
+<hr>
+
+
+
+<div class="row text-center">
+
+
+<div class="col-md-4">
+
+<div class="card shadow score-card">
+
+<h5>
+ATS Score
+</h5>
+
+<h1 class="text-success">
+
+{{score}}%
+
+</h1>
+
+</div>
+
+</div>
+
+
+
+<div class="col-md-4">
+
+<div class="card shadow score-card">
+
+<h5>
+Skill Match
+</h5>
+
+<h1>
+
+{{skill_score}}%
+
+</h1>
+
+</div>
+
+</div>
+
+
+
+
+<div class="col-md-4">
+
+<div class="card shadow score-card">
+
+<h5>
+Text Similarity
+</h5>
+
+<h1>
+
+{{similarity_score}}%
+
+</h1>
+
+</div>
+
+</div>
+
+
+</div>
+
+
+
+<br>
+
+
+<h4>
+👤 Candidate
+</h4>
+
+<p>
+{{name}}
+</p>
+
+
+
+<h4>
+🤖 Predicted Role
+</h4>
+
+<p class="text-primary">
+
+{{result}}
+
+</p>
+
+
+
+<h4>
+💼 Experience
+</h4>
+
+<p>
+
+{{experience}} Years
+
+</p>
+
 
 
 
@@ -142,114 +262,28 @@ Analyze Resume
 
 
 <h4>
-Candidate:
-<span class="text-primary">
-{{ request.form.get('name') }}
+✅ Matched Skills
+</h4>
+
+
+{% if matched %}
+
+{% for skill in matched %}
+
+<span class="badge bg-success skill-badge">
+
+{{skill}}
+
 </span>
-</h4>
-
-
-
-<h4>
-Recommended Role:
-<span class="text-primary">
-{{ result }}
-</span>
-</h4>
-
-
-
-<h4>
-ATS Match Score:
-{{ score }}%
-</h4>
-
-
-
-<div class="progress mb-3">
-
-<div
-
-class="progress-bar"
-
-style="width: {{score}}%">
-
-{{score}}%
-
-</div>
-
-</div>
-
-
-
-
-<h4>
-Experience:
-{{ experience }} Years
-</h4>
-
-
-
-
-
-<h4>
-Skills Found:
-</h4>
-
-
-<ul>
-
-{% for skill in skills %}
-
-<li>
-✅ {{ skill }}
-</li>
 
 {% endfor %}
 
-</ul>
 
+{% else %}
 
-
-
-
-<h4>
-Missing Skills:
-</h4>
-
-
-<ul>
-
-{% for skill in missing %}
-
-<li>
-❌ {{ skill }}
-</li>
-
-{% endfor %}
-
-</ul>
-
-
-
-
-
-<h3>
-Final Decision:
-</h3>
-
-
-<h2>
-
-{{ selection }}
-
-</h2>
-
-
-
-</div>
-
-
+<p>
+No matching skills found
+</p>
 
 {% endif %}
 
@@ -257,10 +291,59 @@ Final Decision:
 
 
 
-</div>
+<h4 class="mt-4">
 
+❌ Missing Skills
+
+</h4>
+
+
+{% if missing %}
+
+
+{% for skill in missing %}
+
+<span class="badge bg-danger skill-badge">
+
+{{skill}}
+
+</span>
+
+{% endfor %}
+
+
+
+{% else %}
+
+<p>
+No missing skills 🎉
+</p>
+
+{% endif %}
+{% endif %}
+
+</div>
 
 </body>
 
-
 </html>
+
+
+
+
+<hr>
+
+
+
+<h3>
+
+Final Decision
+
+</h3>
+
+
+<h2>
+
+{{selection}}
+
+</h2>
