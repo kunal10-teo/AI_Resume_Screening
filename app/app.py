@@ -1,12 +1,12 @@
-
+from ai_matcher import semantic_similarity
 from flask import Flask, request, render_template, session, redirect, url_for
 import joblib
 from pypdf import PdfReader
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import re
 import sys
 import os
+
+
 
 # ============================================================
 # ROOT DIRECTORY
@@ -19,9 +19,11 @@ BASE_DIR = os.path.dirname(
 sys.path.append(BASE_DIR)
 
 # ============================================================
-# DATABASE
+# PROJECT IMPORTS
 # ============================================================
 
+from pdf_report import create_report
+from ranking import rank_candidates
 from database import save_candidate, get_candidates
 
 # ============================================================
@@ -34,6 +36,7 @@ app = Flask(
 )
 
 app.secret_key = "resume_screening_secret"
+
 
 # ============================================================
 # MODEL
@@ -51,6 +54,7 @@ try:
 except Exception as e:
     model = None
     print("Warning: Model could not be loaded:", e)
+
 
 # ============================================================
 # SKILLS DATABASE
@@ -101,22 +105,25 @@ skills_list = [
     "hadoop"
 ]
 
+
 # ============================================================
 # TEXT NORMALIZATION
 # ============================================================
 
 def normalize_text(text):
-    """
-    Normalize text for better skill matching.
-    """
-
     text = text.lower()
 
-    # Replace common separators with spaces
-    text = re.sub(r"[/|,;:()\[\]{}]", " ", text)
+    text = re.sub(
+        r"[/|,;:()\[\]{}]",
+        " ",
+        text
+    )
 
-    # Remove extra whitespace
-    text = re.sub(r"\s+", " ", text)
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
 
     return text.strip()
 
@@ -126,9 +133,6 @@ def normalize_text(text):
 # ============================================================
 
 def extract_skills(text):
-    """
-    Extract known technical skills from text.
-    """
 
     text = normalize_text(text)
 
@@ -138,8 +142,11 @@ def extract_skills(text):
 
         skill_normalized = normalize_text(skill)
 
-        # Word-boundary matching
-        pattern = r"(?<!\w)" + re.escape(skill_normalized) + r"(?!\w)"
+        pattern = (
+            r"(?<!\w)"
+            + re.escape(skill_normalized)
+            + r"(?!\w)"
+        )
 
         if re.search(pattern, text):
             found_skills.append(skill)
@@ -152,9 +159,6 @@ def extract_skills(text):
 # ============================================================
 
 def extract_experience(text):
-    """
-    Extract maximum years of experience from resume text.
-    """
 
     text = text.lower()
 
@@ -167,12 +171,17 @@ def extract_experience(text):
 
     for pattern in patterns:
 
-        matches = re.findall(pattern, text)
+        matches = re.findall(
+            pattern,
+            text
+        )
 
         for value in matches:
 
             try:
-                experience_values.append(float(value))
+                experience_values.append(
+                    float(value)
+                )
             except ValueError:
                 pass
 
@@ -183,43 +192,15 @@ def extract_experience(text):
 
 
 # ============================================================
-# TF-IDF SIMILARITY
+# SEMANTIC SIMILARITY
 # ============================================================
 
 def calculate_similarity(resume, job):
-    """
-    Calculate semantic similarity using TF-IDF.
-    """
 
-    resume = normalize_text(resume)
-    job = normalize_text(job)
-
-    if not resume or not job:
-        return 0.0
-
-    try:
-
-        vectorizer = TfidfVectorizer(
-            stop_words="english",
-            ngram_range=(1, 2)
-        )
-
-        vectors = vectorizer.fit_transform(
-            [resume, job]
-        )
-
-        similarity = cosine_similarity(
-            vectors[0:1],
-            vectors[1:2]
-        )[0][0]
-
-        return round(similarity * 100, 2)
-
-    except Exception as e:
-
-        print("Similarity error:", e)
-
-        return 0.0
+    return semantic_similarity(
+        resume,
+        job
+    )
 
 
 # ============================================================
@@ -232,16 +213,6 @@ def calculate_ats_score(
     resume_skills,
     job_skills
 ):
-    """
-    Calculate a weighted ATS score.
-
-    60% = Skill matching
-    40% = TF-IDF job-description similarity
-    """
-
-    # --------------------------------------------------------
-    # Skill Match
-    # --------------------------------------------------------
 
     if job_skills:
 
@@ -252,8 +223,8 @@ def calculate_ats_score(
         ]
 
         skill_score = (
-            len(matched_skills) /
-            len(job_skills)
+            len(matched_skills)
+            / len(job_skills)
         ) * 100
 
     else:
@@ -261,18 +232,10 @@ def calculate_ats_score(
         matched_skills = []
         skill_score = 0
 
-    # --------------------------------------------------------
-    # Text Similarity
-    # --------------------------------------------------------
-
     similarity_score = calculate_similarity(
         resume_text,
         job_description
     )
-
-    # --------------------------------------------------------
-    # Final ATS Score
-    # --------------------------------------------------------
 
     if job_skills:
 
@@ -291,14 +254,20 @@ def calculate_ats_score(
         100
     )
 
-    return round(final_score, 2), matched_skills
+    return round(
+        final_score,
+        2
+    ), matched_skills
 
 
 # ============================================================
 # CANDIDATE STATUS
 # ============================================================
 
-def calculate_selection(score, experience):
+def calculate_selection(
+    score,
+    experience
+):
 
     if score >= 80:
         return "Strong Candidate"
@@ -317,7 +286,10 @@ def calculate_selection(score, experience):
 # HOME PAGE
 # ============================================================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route(
+    "/",
+    methods=["GET", "POST"]
+)
 def home():
 
     result = ""
@@ -352,7 +324,9 @@ def home():
         # Resume File
         # ----------------------------------------------------
 
-        file = request.files.get("resume")
+        file = request.files.get(
+            "resume"
+        )
 
         if not file or file.filename == "":
             return "Please upload a PDF resume."
@@ -399,7 +373,7 @@ def home():
             return "Could not extract text from the resume."
 
         # ----------------------------------------------------
-        # Extract Resume Skills
+        # Resume Skills
         # ----------------------------------------------------
 
         skills_found = extract_skills(
@@ -407,7 +381,7 @@ def home():
         )
 
         # ----------------------------------------------------
-        # Extract Job Skills
+        # Job Skills
         # ----------------------------------------------------
 
         job_description_normalized = normalize_text(
@@ -548,23 +522,66 @@ def home():
         # Console Information
         # ----------------------------------------------------
 
-        print("\n==============================")
-        print("AI RESUME SCREENING RESULT")
-        print("==============================")
-        print("Name:", name)
-        print("Predicted Role:", result)
-        print("ATS Score:", score)
-        print("Similarity:", similarity_score)
-        print("Skill Score:", skill_score)
-        print("Experience:", experience)
-        print("Matched Skills:", matched_skills)
-        print("Missing Skills:", missing_skills)
-        print("Status:", selection)
-        print("==============================\n")
+        print(
+            "\n=============================="
+        )
 
-    # --------------------------------------------------------
-    # Render Home Page
-    # --------------------------------------------------------
+        print(
+            "AI RESUME SCREENING RESULT"
+        )
+
+        print(
+            "=============================="
+        )
+
+        print(
+            "Name:",
+            name
+        )
+
+        print(
+            "Predicted Role:",
+            result
+        )
+
+        print(
+            "ATS Score:",
+            score
+        )
+
+        print(
+            "Similarity:",
+            similarity_score
+        )
+
+        print(
+            "Skill Score:",
+            skill_score
+        )
+
+        print(
+            "Experience:",
+            experience
+        )
+
+        print(
+            "Matched Skills:",
+            matched_skills
+        )
+
+        print(
+            "Missing Skills:",
+            missing_skills
+        )
+
+        print(
+            "Status:",
+            selection
+        )
+
+        print(
+            "==============================\n"
+        )
 
     return render_template(
         "index.html",
@@ -629,6 +646,143 @@ def login():
 def dashboard():
 
     if "admin" not in session:
+        return redirect(url_for("login"))
+
+    raw_candidates = get_candidates()
+
+    candidates = []
+
+    # --------------------------------------------------------
+    # Convert database data
+    # --------------------------------------------------------
+
+    for c in raw_candidates:
+
+        c = list(c)
+
+        try:
+            c[3] = float(c[3])
+        except:
+            c[3] = 0
+
+        try:
+            c[4] = float(c[4])
+        except:
+            c[4] = 0
+
+        candidates.append(c)
+
+    # --------------------------------------------------------
+    # Search Filters
+    # --------------------------------------------------------
+
+    search = request.args.get("search", "")
+    role_filter = request.args.get("role", "")
+    min_score = request.args.get("score", "")
+
+    if search:
+
+        candidates = [
+            c for c in candidates
+            if search.lower() in str(c[1]).lower()
+        ]
+
+    if role_filter:
+
+        candidates = [
+            c for c in candidates
+            if role_filter.lower() in str(c[2]).lower()
+        ]
+
+    if min_score:
+
+        try:
+
+            minimum = float(min_score)
+
+            candidates = [
+                c for c in candidates
+                if c[3] >= minimum
+            ]
+
+        except ValueError:
+            pass
+
+    # --------------------------------------------------------
+    # Candidate Ranking
+    # --------------------------------------------------------
+
+    ranking_data = []
+
+    for c in candidates:
+
+        ranking_data.append({
+            "id": c[0],
+            "name": c[1],
+            "role": c[2],
+            "score": c[3],
+            "experience": c[4],
+            "status": c[5]
+        })
+
+    ranked_candidates = rank_candidates(
+        ranking_data
+    )
+
+    # --------------------------------------------------------
+    # TOP CANDIDATE
+    # --------------------------------------------------------
+
+    top_candidate = None
+
+    if ranked_candidates:
+        top_candidate = ranked_candidates[0]
+
+    # --------------------------------------------------------
+    # Analytics
+    # --------------------------------------------------------
+
+    selected = 0
+    rejected = 0
+    roles = {}
+
+    for c in candidates:
+
+        if "Selected" in str(c[5]):
+            selected += 1
+        else:
+            rejected += 1
+
+        role = c[2]
+
+        if role in roles:
+            roles[role] += 1
+        else:
+            roles[role] = 1
+
+    # --------------------------------------------------------
+    # Dashboard
+    # --------------------------------------------------------
+
+    return render_template(
+        "dashboard.html",
+        candidates=candidates,
+        selected=selected,
+        rejected=rejected,
+        roles=roles,
+        ranked_candidates=ranked_candidates,
+        top_candidate=top_candidate
+    )
+# ============================================================
+# GENERATE REPORT
+# ============================================================
+
+@app.route(
+    "/generate_report/<int:id>"
+)
+def generate_report(id):
+
+    if "admin" not in session:
 
         return redirect(
             url_for("login")
@@ -636,10 +790,37 @@ def dashboard():
 
     candidates = get_candidates()
 
-    return render_template(
-        "dashboard.html",
-        candidates=candidates
+    candidate = None
+
+    for c in candidates:
+
+        if c[0] == id:
+
+            candidate = c
+
+            break
+
+    if candidate is None:
+
+        return "Candidate not found"
+
+    file = create_report(
+        candidate[1],
+        candidate[2],
+        candidate[3],
+        candidate[4],
+        [
+            "Python",
+            "SQL",
+            "Machine Learning"
+        ],
+        [
+            "AWS"
+        ],
+        candidate[5]
     )
+
+    return f"Report Generated: {file}"
 
 
 # ============================================================
@@ -670,4 +851,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=5000
     )
+
 
