@@ -1,5 +1,6 @@
 from ai_matcher import semantic_similarity
 from flask import Flask, request, render_template, session, redirect, url_for
+from werkzeug.utils import secure_filename
 import joblib
 from pypdf import PdfReader
 import re
@@ -37,7 +38,7 @@ app = Flask(
 
 app.secret_key = "resume_screening_secret"
 
-
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 # ============================================================
 # MODEL
 # ============================================================
@@ -280,7 +281,6 @@ def calculate_selection(
 
     else:
         return "Rejected"
-
 
 # ============================================================
 # HOME PAGE
@@ -596,182 +596,135 @@ def home():
         selection=selection,
         name=name
     )
-
-
-# ============================================================
-# LOGIN
-# ============================================================
-
-@app.route(
-    "/login",
-    methods=["GET", "POST"]
-)
-def login():
-
-    if request.method == "POST":
-
-        username = request.form.get(
-            "username",
-            ""
-        )
-
-        password = request.form.get(
-            "password",
-            ""
-        )
-
-        if (
-            username == "admin"
-            and password == "12345"
-        ):
-
-            session["admin"] = True
-
-            return redirect(
-                url_for("dashboard")
-            )
-
-        return "Invalid Login"
-
-    return render_template(
-        "login.html"
-    )
-
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
 @app.route("/dashboard")
 def dashboard():
 
     if "admin" not in session:
         return redirect(url_for("login"))
 
-    raw_candidates = get_candidates()
-
-    candidates = []
-
-    # --------------------------------------------------------
-    # Convert database data
-    # --------------------------------------------------------
-
-    for c in raw_candidates:
-
-        c = list(c)
-
-        try:
-            c[3] = float(c[3])
-        except:
-            c[3] = 0
-
-        try:
-            c[4] = float(c[4])
-        except:
-            c[4] = 0
-
-        candidates.append(c)
-
-    # --------------------------------------------------------
-    # Search Filters
-    # --------------------------------------------------------
-
-    search = request.args.get("search", "")
-    role_filter = request.args.get("role", "")
-    min_score = request.args.get("score", "")
-
-    if search:
-
-        candidates = [
-            c for c in candidates
-            if search.lower() in str(c[1]).lower()
-        ]
-
-    if role_filter:
-
-        candidates = [
-            c for c in candidates
-            if role_filter.lower() in str(c[2]).lower()
-        ]
-
-    if min_score:
-
-        try:
-
-            minimum = float(min_score)
-
-            candidates = [
-                c for c in candidates
-                if c[3] >= minimum
-            ]
-
-        except ValueError:
-            pass
-
-    # --------------------------------------------------------
-    # Candidate Ranking
-    # --------------------------------------------------------
-
-    ranking_data = []
-
-    for c in candidates:
-
-        ranking_data.append({
-            "id": c[0],
-            "name": c[1],
-            "role": c[2],
-            "score": c[3],
-            "experience": c[4],
-            "status": c[5]
-        })
-
-    ranked_candidates = rank_candidates(
-        ranking_data
-    )
-
-    # --------------------------------------------------------
-    # TOP CANDIDATE
-    # --------------------------------------------------------
-
-    top_candidate = None
-
-    if ranked_candidates:
-        top_candidate = ranked_candidates[0]
-
-    # --------------------------------------------------------
-    # Analytics
-    # --------------------------------------------------------
-
-    selected = 0
-    rejected = 0
-    roles = {}
-
-    for c in candidates:
-
-        if "Selected" in str(c[5]):
-            selected += 1
-        else:
-            rejected += 1
-
-        role = c[2]
-
-        if role in roles:
-            roles[role] += 1
-        else:
-            roles[role] = 1
-
-    # --------------------------------------------------------
-    # Dashboard
-    # --------------------------------------------------------
+    candidates = get_candidates()
 
     return render_template(
         "dashboard.html",
-        candidates=candidates,
-        selected=selected,
-        rejected=rejected,
-        roles=roles,
-        ranked_candidates=ranked_candidates,
-        top_candidate=top_candidate
+        candidates=candidates
+    )
+
+# ============================================================
+# LOGIN
+# ============================================================
+@app.route("/bulk_upload", methods=["GET", "POST"])
+def bulk_upload():
+
+    if "admin" not in session:
+        return redirect(url_for("login"))
+
+    results = []
+
+    if request.method == "POST":
+
+        files = request.files.getlist("resumes")
+        job_description = request.form.get("job_description", "").lower()
+
+        if not job_description:
+            return "Job description is required."
+
+        for file in files:
+
+            if not file or file.filename == "":
+                continue
+
+            if not file.filename.lower().endswith(".pdf"):
+                continue
+
+            try:
+
+                reader = PdfReader(file)
+
+                resume_text = ""
+
+                for page in reader.pages:
+                    text = page.extract_text()
+
+                    if text:
+                        resume_text += text.lower() + " "
+
+                prediction = model.predict([resume_text])
+                role = prediction[0]
+
+                score = calculate_match(
+                    resume_text,
+                    job_description
+                )
+
+                experience = extract_experience(
+                    resume_text
+                )
+
+                skills_found = []
+
+                for skill in skills_list:
+                    if skill in resume_text:
+                        skills_found.append(skill)
+
+                missing_skills = []
+
+                for skill in required_skills:
+                    if skill not in skills_found:
+                        missing_skills.append(skill)
+
+                if score >= 70 and experience >= 1:
+                    status = "Selected"
+                else:
+                    status = "Rejected"
+
+                candidate_name = os.path.splitext(
+                    secure_filename(file.filename)
+                )[0]
+
+                save_candidate(
+                    candidate_name,
+                    role,
+                    score,
+                    experience,
+                    status
+                )
+
+                results.append({
+                    "name": candidate_name,
+                    "role": role,
+                    "score": score,
+                    "experience": experience,
+                    "skills": skills_found,
+                    "missing": missing_skills,
+                    "status": status
+                })
+
+            except Exception as e:
+
+                results.append({
+                    "name": file.filename,
+                    "role": "Error",
+                    "score": 0,
+                    "experience": 0,
+                    "skills": [],
+                    "missing": [],
+                    "status": str(e)
+                })
+
+        results.sort(
+            key=lambda x: x["score"],
+            reverse=True
+        )
+
+        for index, candidate in enumerate(
+            results,
+            start=1
+        ):
+            candidate["rank"] = index
+
+    return render_template(
+        "bulk_upload.html",
+        results=results
     )
 # ============================================================
 # GENERATE REPORT

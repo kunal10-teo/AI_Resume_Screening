@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Bulk Resume Screening</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+</head>
+
+
+<body class="bg-light">
+
+
+<div class="container mt-5">
+
+
+    <!-- Header -->
+
+    <div class="card shadow p-4">
+
+        <h1 class="text-center mb-4">
+            🤖 Bulk AI Resume Screening
+        </h1>
+
+
+        <p class="text-center text-muted">
+            Upload multiple resumes and let AI rank the best candidates.
+        </p>
+
+
+        <!-- Upload Form -->
+
+        <form
+            method="POST"
+            enctype="multipart/form-data"
+        >
+
+
+            <div class="mb-3">
+
+                <label class="form-label fw-bold">
+                    Upload Resume PDFs
+                </label>
+
+                <input
+                    type="file"
+                    name="resumes"
+                    class="form-control"
+                    accept=".pdf"
+                    multiple
+                    required
+                >
+
+                <small class="text-muted">
+                    You can select multiple PDF resumes.
+                </small>
+
+            </div>
+
+
+            <div class="mb-3">
+
+                <label class="form-label fw-bold">
+                    Job Description
+                </label>
+
+                <textarea
+                    name="job_description"
+                    class="form-control"
+                    rows="7"
+                    placeholder="Paste the job description here..."
+                    required
+                ></textarea>
+
+            </div>
+
+
+            <button
+                type="submit"
+                class="btn btn-primary w-100"
+            >
+
+                🚀 Analyze Resumes
+
+            </button>
+
+
+        </form>
+
+    </div>
+
+
+    <!-- Results -->
+
+    {% if results %}
+
+    <div class="card shadow mt-4 p-4">
+
+
+        <h2 class="text-center mb-4">
+            🏆 AI Candidate Ranking
+        </h2>
+
+
+        <div class="table-responsive">
+
+
+            <table class="table table-bordered table-hover align-middle">
+
+
+                <thead class="table-dark">
+
+                    <tr>
+
+                        <th>Rank</th>
+
+                        <th>Candidate</th>
+
+                        <th>Role</th>
+
+                        <th>ATS Score</th>
+
+                        <th>Experience</th>
+
+                        <th>Status</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+
+                {% for candidate in results %}
+
+                <tr>
+
+
+                    <!-- Rank -->
+
+                    <td class="text-center fw-bold">
+
+                        {% if candidate.rank == 1 %}
+
+                            🥇 1
+
+                        {% elif candidate.rank == 2 %}
+
+                            🥈 2
+
+                        {% elif candidate.rank == 3 %}
+
+                            🥉 3
+
+                        {% else %}
+
+                            {{ candidate.rank }}
+
+                        {% endif %}
+
+                    </td>
+
+
+                    <!-- Candidate -->
+
+                    <td>
+
+                        <strong>
+                            {{ candidate.name }}
+                        </strong>
+
+                    </td>
+
+
+                    <!-- Role -->
+
+                    <td>
+
+                        {{ candidate.role }}
+
+                    </td>
+
+
+                    <!-- Score -->
+
+                    <td>
+
+                        <strong>
+
+                            {{ candidate.score }}%
+
+                        </strong>
+
+
+                        <div class="progress mt-2"
+                             style="height: 8px;">
+
+                            <div
+                                class="progress-bar"
+                                style="width: {{ candidate.score }}%;"
+                            ></div>
+
+                        </div>
+
+                    </td>
+
+
+                    <!-- Experience -->
+
+                    <td>
+
+                        {{ candidate.experience }} Years
+
+                    </td>
+
+
+                    <!-- Status -->
+
+                    <td>
+
+                        {% if "Selected" in candidate.status %}
+
+                            <span class="badge bg-success">
+                                {{ candidate.status }}
+                            </span>
+
+                        {% elif candidate.status == "Rejected" %}
+
+                            <span class="badge bg-danger">
+                                {{ candidate.status }}
+                            </span>
+
+                        {% else %}
+
+                            <span class="badge bg-warning text-dark">
+                                {{ candidate.status }}
+                            </span>
+
+                        {% endif %}
+
+                    </td>
+
+
+                </tr>
+
+                {% endfor %}
+
+
+                </tbody>
+
+
+            </table>
+
+
+        </div>
+
+
+    </div>
+
+    {% endif %}
+
+
+    <!-- Back Buttons -->
+
+    <div class="text-center mt-4 mb-5">
+
+        <a
+            href="{{ url_for('dashboard') }}"
+            class="btn btn-dark"
+        >
+            📊 Dashboard
+        </a>
+
+
+        <a
+            href="{{ url_for('logout') }}"
+            class="btn btn-outline-danger"
+        >
+            Logout
+        </a>
+
+    </div>
+
+
+</div>
+
+
+</body>
+
+</html>
