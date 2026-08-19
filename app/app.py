@@ -628,7 +628,6 @@ def home():
                 "Only PDF resumes are supported."
             )
 
-
         # ----------------------------------------------------
         # JOB DESCRIPTION
         # ----------------------------------------------------
@@ -643,6 +642,23 @@ def home():
             return (
                 "Please enter a job description."
             )
+
+        job_description_normalized = normalize_text(
+            job_description
+        )
+
+        job_skills = extract_skills(
+            job_description_normalized
+        )
+
+        print("================================")
+        print("JOB DESCRIPTION:")
+        print(job_description_normalized)
+
+        print("JOB SKILLS:")
+        print(job_skills)
+
+        print("================================")
 
 
         # ----------------------------------------------------
@@ -684,8 +700,6 @@ def home():
                 "Could not extract text "
                 "from the resume."
             )
-
-
         # ----------------------------------------------------
         # JOB SKILLS
         # ----------------------------------------------------
