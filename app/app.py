@@ -24,13 +24,15 @@ sys.path.append(
 # ============================================================
 # PROJECT IMPORTS
 # ============================================================
+
 from semantic_matcher import semantic_match
 
 from pdf_report import create_report
 
-from database import save_candidate, get_candidates
-
-
+from database import (
+    save_candidate,
+    get_candidates
+)
 
 from ranking import (
     calculate_final_ranking_score,
