@@ -24,35 +24,19 @@ sys.path.append(
 # ============================================================
 # PROJECT IMPORTS
 # ============================================================
+from semantic_matcher import semantic_match
 
-try:
-    from semantic_matcher import semantic_match
-except ImportError:
-    from app.semantic_matcher import semantic_match
+from pdf_report import create_report
 
+from database import (
+    save_candidate,
+    get_candidates
+)
 
-try:
-    from pdf_report import create_report
-except ImportError:
-    from app.pdf_report import create_report
-
-
-try:
-    from database import save_candidate, get_candidates
-except ImportError:
-    from app.database import save_candidate, get_candidates
-
-
-try:
-    from ranking import (
-        calculate_final_ranking_score,
-        get_candidate_rank
-    )
-except ImportError:
-    from app.ranking import (
-        calculate_final_ranking_score,
-        get_candidate_rank
-    )
+from ranking import (
+    calculate_final_ranking_score,
+    get_candidate_rank
+)
 
 
 # ============================================================
