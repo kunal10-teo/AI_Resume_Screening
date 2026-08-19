@@ -1,4 +1,3 @@
-from ai_matcher import semantic_similarity
 from flask import Flask, request, render_template, session, redirect, url_for
 from werkzeug.utils import secure_filename
 import joblib
@@ -6,7 +5,6 @@ from pypdf import PdfReader
 import re
 import sys
 import os
-
 
 
 # ============================================================
@@ -18,14 +16,44 @@ BASE_DIR = os.path.dirname(
 )
 
 sys.path.append(BASE_DIR)
+sys.path.append(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
 
 # ============================================================
 # PROJECT IMPORTS
 # ============================================================
 
-from pdf_report import create_report
-from ranking import rank_candidates
-from database import save_candidate, get_candidates
+try:
+    from semantic_matcher import semantic_match
+except ImportError:
+    from app.semantic_matcher import semantic_match
+
+
+try:
+    from pdf_report import create_report
+except ImportError:
+    from app.pdf_report import create_report
+
+
+try:
+    from database import save_candidate, get_candidates
+except ImportError:
+    from app.database import save_candidate, get_candidates
+
+
+try:
+    from ranking import (
+        calculate_final_ranking_score,
+        get_candidate_rank
+    )
+except ImportError:
+    from app.ranking import (
+        calculate_final_ranking_score,
+        get_candidate_rank
+    )
+
 
 # ============================================================
 # FLASK APP
@@ -33,14 +61,21 @@ from database import save_candidate, get_candidates
 
 app = Flask(
     __name__,
-    template_folder=os.path.join(BASE_DIR, "templates")
+    template_folder=os.path.join(
+        BASE_DIR,
+        "templates"
+    )
 )
 
 app.secret_key = "resume_screening_secret"
 
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = (
+    16 * 1024 * 1024
+)
+
+
 # ============================================================
-# MODEL
+# ML MODEL
 # ============================================================
 
 MODEL_PATH = os.path.join(
@@ -49,12 +84,25 @@ MODEL_PATH = os.path.join(
     "resume_model.pkl"
 )
 
+
 try:
-    model = joblib.load(MODEL_PATH)
-    print("ML model loaded successfully.")
+
+    model = joblib.load(
+        MODEL_PATH
+    )
+
+    print(
+        "ML model loaded successfully."
+    )
+
 except Exception as e:
+
     model = None
-    print("Warning: Model could not be loaded:", e)
+
+    print(
+        "Warning: Model could not be loaded:",
+        e
+    )
 
 
 # ============================================================
@@ -62,6 +110,7 @@ except Exception as e:
 # ============================================================
 
 skills_list = [
+
     "python",
     "java",
     "c++",
@@ -69,39 +118,49 @@ skills_list = [
     "mysql",
     "postgresql",
     "mongodb",
+
     "machine learning",
     "deep learning",
     "data science",
     "data analysis",
     "artificial intelligence",
+
     "pandas",
     "numpy",
     "scikit-learn",
     "tensorflow",
     "keras",
     "pytorch",
+
     "matplotlib",
     "seaborn",
+
     "flask",
     "django",
     "fastapi",
+
     "html",
     "css",
     "javascript",
     "react",
     "node.js",
+
     "git",
     "github",
     "docker",
+
     "aws",
     "azure",
     "gcp",
+
     "power bi",
     "tableau",
     "excel",
+
     "nlp",
     "natural language processing",
     "computer vision",
+
     "spark",
     "hadoop"
 ]
@@ -112,7 +171,10 @@ skills_list = [
 # ============================================================
 
 def normalize_text(text):
-    text = text.lower()
+
+    text = str(
+        text or ""
+    ).lower()
 
     text = re.sub(
         r"[/|,;:()\[\]{}]",
@@ -135,13 +197,17 @@ def normalize_text(text):
 
 def extract_skills(text):
 
-    text = normalize_text(text)
+    text = normalize_text(
+        text
+    )
 
     found_skills = []
 
     for skill in skills_list:
 
-        skill_normalized = normalize_text(skill)
+        skill_normalized = normalize_text(
+            skill
+        )
 
         pattern = (
             r"(?<!\w)"
@@ -149,10 +215,17 @@ def extract_skills(text):
             + r"(?!\w)"
         )
 
-        if re.search(pattern, text):
-            found_skills.append(skill)
+        if re.search(
+            pattern,
+            text
+        ):
+            found_skills.append(
+                skill
+            )
 
-    return sorted(set(found_skills))
+    return sorted(
+        set(found_skills)
+    )
 
 
 # ============================================================
@@ -161,13 +234,20 @@ def extract_skills(text):
 
 def extract_experience(text):
 
-    text = text.lower()
+    text = str(
+        text or ""
+    ).lower()
 
     experience_values = []
 
     patterns = [
-        r"(\d+(?:\.\d+)?)\s*(?:year|years|yr|yrs)\s+(?:of\s+)?experience",
-        r"(\d+(?:\.\d+)?)\s*(?:year|years|yr|yrs)"
+
+        r"(\d+(?:\.\d+)?)\s*"
+        r"(?:year|years|yr|yrs)"
+        r"\s+(?:of\s+)?experience",
+
+        r"(\d+(?:\.\d+)?)\s*"
+        r"(?:year|years|yr|yrs)"
     ]
 
     for pattern in patterns:
@@ -180,28 +260,59 @@ def extract_experience(text):
         for value in matches:
 
             try:
+
                 experience_values.append(
                     float(value)
                 )
+
             except ValueError:
+
                 pass
 
     if experience_values:
-        return max(experience_values)
+
+        return max(
+            experience_values
+        )
 
     return 0
 
 
 # ============================================================
-# SEMANTIC SIMILARITY
+# SEMANTIC AI MATCHING
 # ============================================================
 
-def calculate_similarity(resume, job):
+def calculate_similarity(
+    resume,
+    job
+):
 
-    return semantic_similarity(
-        resume,
-        job
-    )
+    try:
+
+        score = semantic_match(
+            resume,
+            job
+        )
+
+        return round(
+            min(
+                max(
+                    float(score),
+                    0
+                ),
+                100
+            ),
+            2
+        )
+
+    except Exception as e:
+
+        print(
+            "Semantic matching error:",
+            e
+        )
+
+        return 0.0
 
 
 # ============================================================
@@ -215,24 +326,6 @@ def calculate_ats_score(
     job_skills
 ):
 
-    if job_skills:
-
-        matched_skills = [
-            skill
-            for skill in job_skills
-            if skill in resume_skills
-        ]
-
-        skill_score = (
-            len(matched_skills)
-            / len(job_skills)
-        ) * 100
-
-    else:
-
-        matched_skills = []
-        skill_score = 0
-
     similarity_score = calculate_similarity(
         resume_text,
         job_description
@@ -240,25 +333,69 @@ def calculate_ats_score(
 
     if job_skills:
 
+        matched_skills = [
+
+            skill
+            for skill in job_skills
+            if skill in resume_skills
+
+        ]
+
+        skill_score = (
+
+            len(matched_skills)
+            / len(job_skills)
+
+        ) * 100
+
+        # 60% Skill Match
+        # 40% Semantic Match
+
         final_score = (
+
             skill_score * 0.60
             +
             similarity_score * 0.40
+
         )
 
     else:
 
-        final_score = similarity_score
+        matched_skills = []
+
+        skill_score = 0
+
+        final_score = (
+            similarity_score
+        )
 
     final_score = min(
-        max(final_score, 0),
+        max(
+            final_score,
+            0
+        ),
         100
     )
 
-    return round(
-        final_score,
-        2
-    ), matched_skills
+    return (
+
+        round(
+            final_score,
+            2
+        ),
+
+        matched_skills,
+
+        round(
+            similarity_score,
+            2
+        ),
+
+        round(
+            skill_score,
+            2
+        )
+    )
 
 
 # ============================================================
@@ -267,20 +404,152 @@ def calculate_ats_score(
 
 def calculate_selection(
     score,
-    experience
+    experience=0
 ):
 
     if score >= 80:
+
         return "Strong Candidate"
 
     elif score >= 65:
+
         return "Shortlisted"
 
     elif score >= 50:
+
         return "Review Required"
 
     else:
+
         return "Rejected"
+
+
+# ============================================================
+# PREDICT JOB ROLE
+# ============================================================
+
+def predict_role(
+    resume_text
+):
+
+    if model is None:
+
+        return "Unknown"
+
+    try:
+
+        prediction = model.predict(
+            [resume_text]
+        )
+
+        return str(
+            prediction[0]
+        )
+
+    except Exception as e:
+
+        print(
+            "Prediction error:",
+            e
+        )
+
+        return "Unknown"
+
+
+# ============================================================
+# PROJECT SCORE
+# ============================================================
+
+def calculate_project_score(
+    resume_text
+):
+
+    project_keywords = [
+
+        "project",
+        "deployment",
+        "github",
+        "flask",
+        "machine learning",
+        "data science",
+        "nlp",
+        "api"
+
+    ]
+
+    project_matches = sum(
+
+        1
+        for keyword in project_keywords
+        if keyword in resume_text
+
+    )
+
+    if not project_keywords:
+
+        return 0
+
+    project_score = (
+
+        project_matches
+        / len(project_keywords)
+
+    ) * 100
+
+    return min(
+        project_score,
+        100
+    )
+
+
+# ============================================================
+# FINAL RANKING
+# ============================================================
+
+def calculate_ranking(
+    skill_score,
+    semantic_score,
+    experience,
+    project_score
+):
+
+    try:
+
+        ranking_score = (
+            calculate_final_ranking_score(
+                skill_score,
+                semantic_score,
+                experience,
+                project_score
+            )
+        )
+
+        ranking_status = (
+            get_candidate_rank(
+                ranking_score
+            )
+        )
+
+        return (
+            round(
+                float(ranking_score),
+                2
+            ),
+            ranking_status
+        )
+
+    except Exception as e:
+
+        print(
+            "Ranking error:",
+            e
+        )
+
+        return (
+            0,
+            "Unknown"
+        )
+
 
 # ============================================================
 # HOME PAGE
@@ -293,23 +562,35 @@ def calculate_selection(
 def home():
 
     result = ""
+
     skills_found = []
+
     missing_skills = []
+
     matched_skills = []
 
     score = 0
+
     similarity_score = 0
+
     skill_score = 0
 
     experience = 0
+
     selection = ""
+
+    ranking_score = 0
+
+    ranking_status = ""
+
+    project_score = 0
 
     name = ""
 
     if request.method == "POST":
 
         # ----------------------------------------------------
-        # Candidate Name
+        # NAME
         # ----------------------------------------------------
 
         name = request.form.get(
@@ -318,21 +599,38 @@ def home():
         ).strip()
 
         if not name:
+
             name = "Unknown"
 
+
         # ----------------------------------------------------
-        # Resume File
+        # RESUME FILE
         # ----------------------------------------------------
 
         file = request.files.get(
             "resume"
         )
 
-        if not file or file.filename == "":
-            return "Please upload a PDF resume."
+        if (
+            not file
+            or file.filename == ""
+        ):
+
+            return (
+                "Please upload a PDF resume."
+            )
+
+        if not file.filename.lower().endswith(
+            ".pdf"
+        ):
+
+            return (
+                "Only PDF resumes are supported."
+            )
+
 
         # ----------------------------------------------------
-        # Job Description
+        # JOB DESCRIPTION
         # ----------------------------------------------------
 
         job_description = request.form.get(
@@ -341,15 +639,21 @@ def home():
         ).strip()
 
         if not job_description:
-            return "Please enter a job description."
+
+            return (
+                "Please enter a job description."
+            )
+
 
         # ----------------------------------------------------
-        # PDF Parsing
+        # PDF PARSING
         # ----------------------------------------------------
 
         try:
 
-            reader = PdfReader(file)
+            reader = PdfReader(
+                file
+            )
 
             resume_text = ""
 
@@ -358,7 +662,10 @@ def home():
                 text = page.extract_text()
 
                 if text:
-                    resume_text += " " + text
+
+                    resume_text += (
+                        " " + text
+                    )
 
             resume_text = normalize_text(
                 resume_text
@@ -366,130 +673,132 @@ def home():
 
         except Exception as e:
 
-            return f"Could not read resume PDF: {e}"
+            return (
+                f"Could not read resume PDF: {e}"
+            )
+
 
         if not resume_text:
 
-            return "Could not extract text from the resume."
+            return (
+                "Could not extract text "
+                "from the resume."
+            )
+
 
         # ----------------------------------------------------
-        # Resume Skills
+        # JOB SKILLS
         # ----------------------------------------------------
 
-        skills_found = extract_skills(
-            resume_text
-        )
-
-        # ----------------------------------------------------
-        # Job Skills
-        # ----------------------------------------------------
-
-        job_description_normalized = normalize_text(
-            job_description
+        job_description_normalized = (
+            normalize_text(
+                job_description
+            )
         )
 
         job_skills = extract_skills(
             job_description_normalized
         )
 
-        # ----------------------------------------------------
-        # Missing Skills
-        # ----------------------------------------------------
-
-        missing_skills = [
-            skill
-            for skill in job_skills
-            if skill not in skills_found
-        ]
 
         # ----------------------------------------------------
-        # Matched Skills
+        # RESUME SKILLS
         # ----------------------------------------------------
+
+        skills_found = extract_skills(
+            resume_text
+        )
+
 
         matched_skills = [
+
             skill
             for skill in job_skills
             if skill in skills_found
+
         ]
 
+
+        missing_skills = [
+
+            skill
+            for skill in job_skills
+            if skill not in skills_found
+
+        ]
+
+
         # ----------------------------------------------------
-        # Similarity
+        # ATS + SEMANTIC SCORE
         # ----------------------------------------------------
 
-        similarity_score = calculate_similarity(
+        (
+            score,
+            matched_skills,
+            similarity_score,
+            skill_score
+        ) = calculate_ats_score(
+
             resume_text,
-            job_description_normalized
-        )
 
-        # ----------------------------------------------------
-        # Skill Score
-        # ----------------------------------------------------
-
-        if job_skills:
-
-            skill_score = round(
-                (
-                    len(matched_skills)
-                    /
-                    len(job_skills)
-                ) * 100,
-                2
-            )
-
-        else:
-
-            skill_score = 0
-
-        # ----------------------------------------------------
-        # ATS Score
-        # ----------------------------------------------------
-
-        score, matched_skills = calculate_ats_score(
-            resume_text,
             job_description_normalized,
+
             skills_found,
+
             job_skills
         )
 
+
         # ----------------------------------------------------
-        # Experience
+        # EXPERIENCE
         # ----------------------------------------------------
 
         experience = extract_experience(
             resume_text
         )
 
-        # ----------------------------------------------------
-        # ML Job Role Prediction
-        # ----------------------------------------------------
-
-        if model is not None:
-
-            try:
-
-                prediction = model.predict(
-                    [resume_text]
-                )
-
-                result = str(
-                    prediction[0]
-                )
-
-            except Exception as e:
-
-                print(
-                    "Prediction error:",
-                    e
-                )
-
-                result = "Unknown"
-
-        else:
-
-            result = "Unknown"
 
         # ----------------------------------------------------
-        # Candidate Selection
+        # PROJECT SCORE
+        # ----------------------------------------------------
+
+        project_score = (
+            calculate_project_score(
+                resume_text
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # FINAL RANKING
+        # ----------------------------------------------------
+
+        (
+            ranking_score,
+            ranking_status
+        ) = calculate_ranking(
+
+            skill_score,
+
+            similarity_score,
+
+            experience,
+
+            project_score
+        )
+
+
+        # ----------------------------------------------------
+        # ML ROLE PREDICTION
+        # ----------------------------------------------------
+
+        result = predict_role(
+            resume_text
+        )
+
+
+        # ----------------------------------------------------
+        # CANDIDATE SELECTION
         # ----------------------------------------------------
 
         selection = calculate_selection(
@@ -497,18 +806,25 @@ def home():
             experience
         )
 
+
         # ----------------------------------------------------
-        # Save Candidate
+        # SAVE CANDIDATE
         # ----------------------------------------------------
 
         try:
 
             save_candidate(
+
                 name,
+
                 result,
+
                 score,
+
                 experience,
+
                 selection
+
             )
 
         except Exception as e:
@@ -518,8 +834,9 @@ def home():
                 e
             )
 
+
         # ----------------------------------------------------
-        # Console Information
+        # CONSOLE OUTPUT
         # ----------------------------------------------------
 
         print(
@@ -545,18 +862,33 @@ def home():
         )
 
         print(
-            "ATS Score:",
+            "Final ATS Score:",
             score
         )
 
         print(
-            "Similarity:",
+            "Semantic Score:",
             similarity_score
         )
 
         print(
             "Skill Score:",
             skill_score
+        )
+
+        print(
+            "Project Score:",
+            project_score
+        )
+
+        print(
+            "Ranking Score:",
+            ranking_score
+        )
+
+        print(
+            "Ranking Status:",
+            ranking_status
         )
 
         print(
@@ -583,19 +915,109 @@ def home():
             "==============================\n"
         )
 
+
+    # --------------------------------------------------------
+    # RENDER HOME PAGE
+    # --------------------------------------------------------
+
     return render_template(
+
         "index.html",
+
         result=result,
+
         skills=skills_found,
+
         matched=matched_skills,
+
         missing=missing_skills,
+
         score=score,
+
         similarity_score=similarity_score,
+
         skill_score=skill_score,
+
+        project_score=project_score,
+
+        ranking_score=ranking_score,
+
+        ranking_status=ranking_status,
+
         experience=experience,
+
         selection=selection,
+
         name=name
+
     )
+
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+@app.route(
+    "/login",
+    methods=["GET", "POST"]
+)
+def login():
+
+    if request.method == "POST":
+
+        username = request.form.get(
+            "username",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
+
+        if (
+            username == "admin"
+            and password == "12345"
+        ):
+
+            session["admin"] = True
+
+            return redirect(
+                url_for(
+                    "dashboard"
+                )
+            )
+
+        return "Invalid Login"
+
+    return render_template(
+        "login.html"
+    )
+
+
+# ============================================================
+# LOGOUT
+# ============================================================
+
+@app.route(
+    "/logout"
+)
+def logout():
+
+    session.pop(
+        "admin",
+        None
+    )
+
+    return redirect(
+        url_for(
+            "login"
+        )
+    )
+# ============================================================
+# DASHBOARD
+# ============================================================
+
 @app.route("/dashboard")
 def dashboard():
 
@@ -604,29 +1026,139 @@ def dashboard():
 
     candidates = get_candidates()
 
+    clean_candidates = []
+
+    for candidate in candidates:
+
+        candidate = list(candidate)
+
+        try:
+            score = candidate[3]
+
+            if isinstance(score, bytes):
+                score = float(score.decode("utf-8"))
+            else:
+                score = float(score)
+
+            candidate[3] = score
+
+        except (ValueError, TypeError, AttributeError):
+            candidate[3] = 0.0
+
+        clean_candidates.append(tuple(candidate))
+
+    # Role-wise count
+    roles = {}
+
+    for candidate in clean_candidates:
+        role = candidate[2]
+
+        if role in roles:
+            roles[role] += 1
+        else:
+            roles[role] = 1
+
     return render_template(
         "dashboard.html",
-        candidates=candidates
+        candidates=clean_candidates,
+        roles=roles
+    )
+    # --------------------------------------------------------
+    # ROLE DISTRIBUTION
+    # --------------------------------------------------------
+
+    roles = {}
+
+    for candidate in candidates:
+
+        try:
+
+            role = candidate[1]
+
+            if role:
+                roles[role] = roles.get(role, 0) + 1
+
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # SELECTION ANALYTICS
+    # --------------------------------------------------------
+
+    selected = 0
+    rejected = 0
+
+    for candidate in candidates:
+
+        try:
+
+            status = str(
+                candidate[5]
+            ).lower()
+
+            if (
+                "strong" in status
+                or "shortlisted" in status
+                or "selected" in status
+            ):
+                selected += 1
+
+            elif "rejected" in status:
+                rejected += 1
+
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # DASHBOARD
+    # --------------------------------------------------------
+
+    return render_template(
+        "dashboard.html",
+        candidates=candidates,
+        roles=roles,
+        selected=selected,
+        rejected=rejected
     )
 
 # ============================================================
-# LOGIN
+# BULK RESUME UPLOAD
 # ============================================================
-@app.route("/bulk_upload", methods=["GET", "POST"])
+
+@app.route(
+    "/bulk_upload",
+    methods=["GET", "POST"]
+)
 def bulk_upload():
 
     if "admin" not in session:
-        return redirect(url_for("login"))
+        return redirect(
+            url_for("login")
+        )
 
     results = []
 
     if request.method == "POST":
 
-        files = request.files.getlist("resumes")
-        job_description = request.form.get("job_description", "").lower()
+        files = request.files.getlist(
+            "resumes"
+        )
+
+        job_description = request.form.get(
+            "job_description",
+            ""
+        ).strip()
 
         if not job_description:
             return "Job description is required."
+
+        job_description_normalized = normalize_text(
+            job_description
+        )
+
+        job_skills = extract_skills(
+            job_description_normalized
+        )
 
         for file in files:
 
@@ -638,171 +1170,230 @@ def bulk_upload():
 
             try:
 
+                # PDF TEXT
                 reader = PdfReader(file)
 
                 resume_text = ""
 
                 for page in reader.pages:
+
                     text = page.extract_text()
 
                     if text:
-                        resume_text += text.lower() + " "
+                        resume_text += " " + text
 
-                prediction = model.predict([resume_text])
-                role = prediction[0]
-
-                score = calculate_match(
-                    resume_text,
-                    job_description
+                resume_text = normalize_text(
+                    resume_text
                 )
 
+                if not resume_text:
+                    raise ValueError(
+                        "No readable text found in PDF."
+                    )
+
+                # ROLE
+                role = predict_role(
+                    resume_text
+                )
+
+                # SKILLS
+                skills_found = extract_skills(
+                    resume_text
+                )
+
+                matched_skills = [
+                    skill
+                    for skill in job_skills
+                    if skill in skills_found
+                ]
+
+                missing_skills = [
+                    skill
+                    for skill in job_skills
+                    if skill not in skills_found
+                ]
+
+                # ATS SCORE
+                (
+                    final_score,
+                    matched_skills,
+                    semantic_score,
+                    skill_score
+                ) = calculate_ats_score(
+                    resume_text,
+                    job_description_normalized,
+                    skills_found,
+                    job_skills
+                )
+
+                # EXPERIENCE
                 experience = extract_experience(
                     resume_text
                 )
 
-                skills_found = []
-
-                for skill in skills_list:
-                    if skill in resume_text:
-                        skills_found.append(skill)
-
-                missing_skills = []
-
-                for skill in required_skills:
-                    if skill not in skills_found:
-                        missing_skills.append(skill)
-
-                if score >= 70 and experience >= 1:
-                    status = "Selected"
-                else:
-                    status = "Rejected"
-
-                candidate_name = os.path.splitext(
-                    secure_filename(file.filename)
-                )[0]
-
-                save_candidate(
-                    candidate_name,
-                    role,
-                    score,
-                    experience,
-                    status
+                # PROJECT SCORE
+                project_score = calculate_project_score(
+                    resume_text
                 )
 
+                # RANKING
+                (
+                    ranking_score,
+                    ranking_status
+                ) = calculate_ranking(
+                    skill_score,
+                    semantic_score,
+                    experience,
+                    project_score
+                )
+
+                # STATUS
+                status = calculate_selection(
+                    final_score,
+                    experience
+                )
+
+                # NAME
+                candidate_name = os.path.splitext(
+                    secure_filename(
+                        file.filename
+                    )
+                )[0]
+
+                # DATABASE
+                try:
+
+                    save_candidate(
+                        candidate_name,
+                        role,
+                        final_score,
+                        experience,
+                        status
+                    )
+
+                except Exception as db_error:
+
+                    print(
+                        "Database error:",
+                        db_error
+                    )
+
+                # RESULT
                 results.append({
+
                     "name": candidate_name,
+
                     "role": role,
-                    "score": score,
+
+                    "score": round(
+                        final_score,
+                        2
+                    ),
+
+                    "skill_score": round(
+                        skill_score,
+                        2
+                    ),
+
+                    "semantic_score": round(
+                        semantic_score,
+                        2
+                    ),
+
+                    "project_score": round(
+                        project_score,
+                        2
+                    ),
+
+                    "ranking_score": round(
+                        ranking_score,
+                        2
+                    ),
+
+                    "ranking_status": ranking_status,
+
                     "experience": experience,
-                    "skills": skills_found,
-                    "missing": missing_skills,
-                    "status": status
+
+                    "status": status,
+
+                    "matched_skills": matched_skills,
+
+                    "missing_skills": missing_skills
+
                 })
 
             except Exception as e:
 
+                print(
+                    "Resume processing error:",
+                    e
+                )
+
                 results.append({
+
                     "name": file.filename,
+
                     "role": "Error",
+
                     "score": 0,
+
+                    "skill_score": 0,
+
+                    "semantic_score": 0,
+
+                    "project_score": 0,
+
+                    "ranking_score": 0,
+
+                    "ranking_status": "Error",
+
                     "experience": 0,
-                    "skills": [],
-                    "missing": [],
-                    "status": str(e)
+
+                    "status": "Error",
+
+                    "matched_skills": [],
+
+                    "missing_skills": [],
+
+                    "error": str(e)
+
                 })
 
-        results.sort(
-            key=lambda x: x["score"],
-            reverse=True
-        )
-
-        for index, candidate in enumerate(
-            results,
-            start=1
-        ):
-            candidate["rank"] = index
+    # ========================================================
+    # RENDER RESULTS
+    # ========================================================
 
     return render_template(
         "bulk_upload.html",
         results=results
     )
-# ============================================================
-# GENERATE REPORT
-# ============================================================
-
-@app.route(
-    "/generate_report/<int:id>"
-)
-def generate_report(id):
-
-    if "admin" not in session:
-
-        return redirect(
-            url_for("login")
-        )
-
-    candidates = get_candidates()
-
-    candidate = None
-
-    for c in candidates:
-
-        if c[0] == id:
-
-            candidate = c
-
-            break
-
-    if candidate is None:
-
-        return "Candidate not found"
-
-    file = create_report(
-        candidate[1],
-        candidate[2],
-        candidate[3],
-        candidate[4],
-        [
-            "Python",
-            "SQL",
-            "Machine Learning"
-        ],
-        [
-            "AWS"
-        ],
-        candidate[5]
-    )
-
-    return f"Report Generated: {file}"
 
 
 # ============================================================
-# LOGOUT
-# ============================================================
-
-@app.route("/logout")
-def logout():
-
-    session.pop(
-        "admin",
-        None
-    )
-
-    return redirect(
-        url_for("login")
-    )
-
-
-# ============================================================
-# RUN APPLICATION
+# START FLASK SERVER
 # ============================================================
 
 if __name__ == "__main__":
 
     app.run(
-        debug=True,
         host="0.0.0.0",
-        port=5000
+        port=5000,
+        debug=True
     )
 
 
+# ============================================================
+# START FLASK SERVER
+# ============================================================
+
+if __name__ == "__main__":
+
+    app.run(
+
+        host="0.0.0.0",
+
+        port=5000,
+
+        debug=True
+
+    )
