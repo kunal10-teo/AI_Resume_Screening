@@ -1,11 +1,5 @@
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
-
-# Load semantic AI model
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
 
 
 def semantic_match(resume_text, job_description):
@@ -13,19 +7,20 @@ def semantic_match(resume_text, job_description):
     if not resume_text or not job_description:
         return 0.0
 
-    resume_embedding = model.encode(
-        [resume_text]
+    documents = [
+        resume_text,
+        job_description
+    ]
+
+    vectorizer = TfidfVectorizer(
+        stop_words="english"
     )
 
-    job_embedding = model.encode(
-        [job_description]
-    )
+    tfidf_matrix = vectorizer.fit_transform(documents)
 
     similarity = cosine_similarity(
-        resume_embedding,
-        job_embedding
+        tfidf_matrix[0:1],
+        tfidf_matrix[1:2]
     )[0][0]
 
-    score = similarity * 100
-
-    return round(score, 2)
+    return round(similarity * 100, 2)
